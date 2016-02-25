@@ -88,7 +88,7 @@ public class CameraPreview extends ViewGroup implements SurfaceHolder.Callback, 
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        final float k = mPreviewSize.width / (float)mPreviewSize.height;
+        final float k = mPreviewSize != null ? mPreviewSize.width / (float)mPreviewSize.height : 1;
         final int w =  right - left;
         final int h = bottom - top;
         getChildAt(0).layout(0, 0, w, (int)(w*k));
@@ -96,21 +96,34 @@ public class CameraPreview extends ViewGroup implements SurfaceHolder.Callback, 
 
     @Override
     public void onPreviewFrame(byte[] bytes, Camera camera) {
-        Bitmap bmp = Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888);
-        for(int i = 0; i < mPreviewSize.height; i++) {
-            for(int j = 0; j < mPreviewSize.width; j++) {
-                int y = bytes[mPreviewSize.width * i + j];
-                if (i >= 300 && i < 600 && j>= 300 && j< 600)
-                bmp.setPixel(j - 300, i - 300, Color.rgb(y, y, y));
+        imageProcessing(bytes, mPreviewSize.width, mPreviewSize.height);
+    }
+
+    private void imageProcessing(byte[] bytes, int width, int height) {
+        final int [] pixels = new int[width * height];
+        final int [][] integralImage = new int[height][width];
+        int rowSum;
+        for(int i = 0; i < height; i++) {
+            rowSum = 0;
+            for(int j = 0; j < width; j++) {
+                rowSum += (bytes[width * i + j] & 0xff);
+                integralImage[i][j] = i == 0 ? rowSum : integralImage[i - 1][j] + rowSum;
+                pixels[width * i + j] = Color.rgb(integralImage[i][j]%256,integralImage[i][j]%256, integralImage[i][j]%256);
             }
         }
 
+        Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
+        bmp.setPixels(pixels, 0, width, 0, 0, width, height);
+        saveBitmap(bmp, "1.png");
+    }
+
+    private void saveBitmap(Bitmap bmp, String filename) {
         FileOutputStream out = null;
         try {
             String root = Environment.getExternalStorageDirectory().toString();
             File myDir = new File(root + "/test_images");
             myDir.mkdirs();
-            File file = new File (myDir, "1.png");
+            File file = new File (myDir, filename);
             if (file.exists()){
                 file.delete();
             }
